@@ -1,54 +1,12 @@
-// content.js - Runs in ISOLATED world
-console.log("[Content Script] Initializing ISOLATED world...");
+// content.js
+console.log("[Content Script] Initializing CSV-to-Unfollow Engine...");
 
-// Inject the script into the MAIN world
-const script = document.createElement('script');
-script.src = chrome.runtime.getURL('inject.js');
-script.onload = function() {
-    this.remove(); // Clean up after execution to keep DOM tidy
-};
-(document.head || document.documentElement).appendChild(script);
-
-// Store captured users for processing
-let knownUsers = new Map(); // Maps username -> user_id
-let targetList = new Set(); // Usernames to unfollow from CSV
-let capturedUsers = [];     // Queue of users who are in targetList AND we have their ID
+let targetList = []; // Array of usernames from CSV
+let processedCount = 0; // How many we have successfully processed
 let isQueueRunning = false;
 let queuePaused = false;
-let autoScrollInterval = null;
+const IG_APP_ID = '936619743392459';
 
-// Helper function to recursively search for user objects in unknown JSON structures
-function extractUsersFromPayload(obj, extracted = []) {
-    if (!obj || typeof obj !== 'object') return extracted;
-
-    // Check if this object represents a user (typical Instagram payload structures)
-    // REST API usually has 'pk' (primary key) and 'username'
-    // GraphQL usually has 'id' and 'username'
-    if (obj.username && (obj.pk || obj.id)) {
-        // Exclude the currently logged-in user if they somehow appear, though unlikely in following lists
-        extracted.push({
-            id: obj.pk || obj.id,
-            username: obj.username,
-            full_name: obj.full_name || ''
-        });
-        return extracted; // Stop traversing this branch once we find a user object
-    }
-
-    // Recursively search arrays and objects
-    if (Array.isArray(obj)) {
-        for (const item of obj) {
-            extractUsersFromPayload(item, extracted);
-        }
-    } else {
-        for (const key in obj) {
-            extractUsersFromPayload(obj[key], extracted);
-        }
-    }
-    
-    return extracted;
-}
-
-// Function to extract CSRF token from cookies
 function getCsrfToken() {
     const value = `; ${document.cookie}`;
     const parts = value.split(`; csrftoken=`);
@@ -56,16 +14,42 @@ function getCsrfToken() {
     return null;
 }
 
-// Function to get the Application ID (required by Instagram)
-const IG_APP_ID = '936619743392459';
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-// Core Engine Function: Execute Unfollow POST Request
+async function resolveUsernameToId(username) {
+    console.log(`[Content Script] Resolving ID for username: ${username}`);
+    const url = `https://www.instagram.com/api/v1/users/web_profile_info/?username=${username}`;
+    
+    try {
+        const response = await fetch(url, {
+            headers: {
+                'X-IG-App-ID': IG_APP_ID,
+                'X-CSRFToken': getCsrfToken(),
+                'Accept': '*/*'
+            }
+        });
+
+        if (response.status === 200) {
+            const data = await response.json();
+            if (data && data.data && data.data.user) {
+                return { success: true, id: data.data.user.id };
+            }
+            return { success: false, error: 'USER_NOT_FOUND' };
+        } else if (response.status === 429) {
+            return { success: false, error: 'RATE_LIMITED' };
+        } else if (response.status === 404) {
+            return { success: false, error: 'USER_NOT_FOUND' };
+        }
+        return { success: false, error: `HTTP_${response.status}` };
+    } catch (e) {
+        console.error(`[Content Script] Fetch error for ${username}:`, e);
+        return { success: false, error: 'NETWORK_ERROR' };
+    }
+}
+
 async function executeUnfollow(userId) {
     const csrfToken = getCsrfToken();
-    if (!csrfToken) {
-        console.error("[Content Script] CSRF token not found. Are you logged in?");
-        return { success: false, error: 'NO_CSRF_TOKEN' };
-    }
+    if (!csrfToken) return { success: false, error: 'NO_CSRF_TOKEN' };
 
     const url = `https://www.instagram.com/web/friendships/${userId}/unfollow/`;
     
@@ -81,237 +65,127 @@ async function executeUnfollow(userId) {
         });
 
         if (response.status === 200) {
-            console.log(`[Content Script] Successfully unfollowed user ID: ${userId}`);
-            return { success: true, status: response.status };
+            return { success: true };
         } else if (response.status === 429) {
-            console.warn(`[Content Script] RATE LIMITED (429) for user ID: ${userId}. Execution must pause.`);
-            return { success: false, error: 'RATE_LIMITED', status: 429 };
-        } else {
-            console.error(`[Content Script] Failed to unfollow user ID: ${userId}. Status: ${response.status}`);
-            return { success: false, error: 'REQUEST_FAILED', status: response.status };
+            return { success: false, error: 'RATE_LIMITED' };
         }
+        return { success: false, error: `HTTP_${response.status}` };
     } catch (error) {
-        console.error(`[Content Script] Network error while unfollowing user ID: ${userId}`, error);
         return { success: false, error: 'NETWORK_ERROR' };
     }
 }
 
-// Delay helper
-const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
-
-function startAutoScroll() {
-    if (autoScrollInterval) return;
-    console.log("[Content Script] Starting auto-scroller to hunt for targets...");
-    
-    let lastScrollTop = -1;
-    let sameScrollCount = 0;
-    
-    autoScrollInterval = setInterval(() => {
-        const dialogs = document.querySelectorAll('[role="dialog"]');
-        let scrolled = false;
-        
-        for (const dialog of dialogs) {
-            // Usually the scrollable container is a direct/deep div inside the dialog
-            const divs = dialog.querySelectorAll('div');
-            for (const div of divs) {
-                if (div.scrollHeight > div.clientHeight && div.clientHeight > 0) {
-                    // This looks like our scrollable list
-                    if (div.scrollTop === lastScrollTop) {
-                        sameScrollCount++;
-                        if (sameScrollCount > 4) {
-                            console.log("[Content Script] Auto-scroller reached the end of the list.");
-                            stopAutoScroll();
-                        }
-                    } else {
-                        lastScrollTop = div.scrollTop;
-                        sameScrollCount = 0;
-                        div.scrollTop = div.scrollHeight;
-                    }
-                    scrolled = true;
-                    break;
-                }
-            }
-            if (scrolled) break;
-        }
-        
-        // Fallback if dialog not found, try main window
-        if (!scrolled) {
-            if (window.scrollY === lastScrollTop) {
-                sameScrollCount++;
-                if (sameScrollCount > 4) stopAutoScroll();
-            } else {
-                lastScrollTop = window.scrollY;
-                sameScrollCount = 0;
-                window.scrollTo(0, document.body.scrollHeight);
-            }
-        }
-    }, 2500); // 2.5 seconds between scrolls
-}
-
-function stopAutoScroll() {
-    if (autoScrollInterval) {
-        clearInterval(autoScrollInterval);
-        autoScrollInterval = null;
-        console.log("[Content Script] Auto-scroller stopped.");
-    }
-}
-
-// Core Engine Orchestrator
 async function startQueue() {
-    if (isQueueRunning) {
-        console.log("[Content Script] Queue is already running.");
+    if (isQueueRunning) return;
+    if (targetList.length === 0) {
+        console.warn("[Content Script] Target list is empty.");
         return;
-    }
-    
-    if (targetList.size === 0) {
-        console.warn("[Content Script] Warning: Target list is empty! Upload a CSV first.");
-        return; // Don't run if there's no one to unfollow
     }
 
     isQueueRunning = true;
-    console.log("[Content Script] Starting execution queue...");
-    
-    // Automatically start scrolling the page to find targets
-    startAutoScroll();
+    console.log("[Content Script] Engine started...");
 
-    while (isQueueRunning) {
+    while (targetList.length > 0 && isQueueRunning) {
         if (queuePaused) {
-            // Check every 10 seconds if unpaused
             await delay(10000);
             continue;
         }
 
-        if (capturedUsers.length === 0) {
-            // Queue is empty, just idle and wait for the auto-scroller to find someone
-            await delay(3000);
-            continue;
-        }
-
-        const user = capturedUsers[0]; // Peek the first user
+        const username = targetList[0];
         
-        console.log(`[Content Script] Action: Unfollowing ${user.username} (ID: ${user.id})...`);
-        const result = await executeUnfollow(user.id);
+        // 1. Resolve ID
+        const resolveResult = await resolveUsernameToId(username);
         
-        if (result.success) {
-            capturedUsers.shift(); // Successfully unfollowed, remove from queue
+        if (resolveResult.success) {
+            const userId = resolveResult.id;
+            console.log(`[Content Script] Found ID for ${username}: ${userId}. Unfollowing...`);
             
-            // Randomized delay between 5s and 15s
-            const sleepTime = Math.floor(Math.random() * 10000) + 5000;
-            console.log(`[Content Script] Sleeping for ${sleepTime}ms before next action...`);
-            await delay(sleepTime);
-        } else if (result.error === 'RATE_LIMITED') {
-            console.warn("[Content Script] Rate limit hit. Pausing queue for 15 minutes.");
+            // 2. Wait 2 seconds between profile fetch and unfollow to simulate realistic delay
+            await delay(2000);
+            
+            // 3. Unfollow
+            const unfollowResult = await executeUnfollow(userId);
+            
+            if (unfollowResult.success) {
+                console.log(`[Content Script] Successfully unfollowed: ${username}`);
+                targetList.shift();
+                processedCount++;
+                
+                // 4. Random delay (5 - 15 seconds)
+                const sleepTime = Math.floor(Math.random() * 10000) + 5000;
+                console.log(`[Content Script] Sleeping for ${sleepTime}ms...`);
+                await delay(sleepTime);
+                
+            } else if (unfollowResult.error === 'RATE_LIMITED') {
+                console.warn("[Content Script] RATE LIMITED during unfollow. Pausing for 15 mins.");
+                queuePaused = true;
+                setTimeout(() => { queuePaused = false; }, 15 * 60 * 1000);
+            } else {
+                console.error(`[Content Script] Unfollow failed for ${username}: ${unfollowResult.error}`);
+                targetList.shift(); // skip to next
+                await delay(5000);
+            }
+            
+        } else if (resolveResult.error === 'RATE_LIMITED') {
+            console.warn("[Content Script] RATE LIMITED during ID resolution. Pausing for 15 mins.");
             queuePaused = true;
-            // Exponential backoff or static 15-minute pause
-            setTimeout(() => {
-                queuePaused = false;
-                console.log("[Content Script] Resuming queue after rate limit pause.");
-            }, 15 * 60 * 1000); 
-            // Don't remove the user from the queue, we'll retry them
-        } else if (result.error === 'NO_CSRF_TOKEN') {
-            console.error("[Content Script] Halting queue due to missing CSRF token.");
-            isQueueRunning = false;
-            break;
+            setTimeout(() => { queuePaused = false; }, 15 * 60 * 1000);
+        } else if (resolveResult.error === 'USER_NOT_FOUND') {
+            console.log(`[Content Script] User ${username} not found (maybe changed name or deleted). Skipping.`);
+            targetList.shift();
+            processedCount++; // count as processed so progress bar moves
+            await delay(2000);
         } else {
-            console.error(`[Content Script] Unhandled error for ${user.username}. Removing from queue to prevent infinite loop.`);
-            capturedUsers.shift();
-            await delay(5000); // 5s fallback delay on error
+            console.error(`[Content Script] Failed to resolve ${username}: ${resolveResult.error}`);
+            targetList.shift();
+            await delay(5000);
         }
     }
     
     isQueueRunning = false;
-    stopAutoScroll();
-    console.log("[Content Script] Queue execution stopped.");
+    console.log("[Content Script] Engine stopped.");
 }
 
 function stopQueue() {
     isQueueRunning = false;
-    stopAutoScroll();
-    console.log("[Content Script] Stopping execution queue...");
 }
 
-// Make functions accessible from the isolated context console for testing
-window.startQueue = startQueue;
-window.stopQueue = stopQueue;
-
-// Listen for messages from the MAIN world inject.js
-window.addEventListener("message", function(event) {
-    // We only accept messages from ourselves
-    if (event.source !== window) return;
-
-    if (event.data && event.data.type === "FROM_INJECT_JS") {
-        const payload = event.data.payload;
-        console.log(`[Content Script] Intercepted network data from: ${payload.url}`);
-        
-        const extracted = extractUsersFromPayload(payload.data);
-        if (extracted.length > 0) {
-            let newAdditions = 0;
-            
-            extracted.forEach(newUser => {
-                // Save to known users database
-                knownUsers.set(newUser.username, newUser.id);
-                
-                // If they are a target and not already in queue, queue them!
-                if (targetList.has(newUser.username) && !capturedUsers.find(u => u.id === newUser.id)) {
-                    capturedUsers.push(newUser);
-                    newAdditions++;
-                }
-            });
-            
-            if (newAdditions > 0) {
-                console.log(`[Content Script] Matched ${newAdditions} target users! Total in queue: ${capturedUsers.length}`);
-                console.table(capturedUsers.slice(-newAdditions));
-            }
-        }
-    }
-}, false);
-
-// Listen for messages from the popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === "GET_STATUS") {
         sendResponse({
             isRunning: isQueueRunning,
             queuePaused: queuePaused,
-            queueLength: capturedUsers.length,
-            targetSize: targetList.size
+            targetSize: targetList.length,
+            processedCount: processedCount
         });
     } else if (request.action === "START_QUEUE") {
         startQueue();
         sendResponse({
             isRunning: isQueueRunning,
             queuePaused: queuePaused,
-            queueLength: capturedUsers.length,
-            targetSize: targetList.size
+            targetSize: targetList.length,
+            processedCount: processedCount
         });
     } else if (request.action === "STOP_QUEUE") {
         stopQueue();
         sendResponse({
             isRunning: isQueueRunning,
             queuePaused: queuePaused,
-            queueLength: capturedUsers.length,
-            targetSize: targetList.size
+            targetSize: targetList.length,
+            processedCount: processedCount
         });
     } else if (request.action === "IMPORT_TARGETS") {
         if (request.targets && Array.isArray(request.targets)) {
-            targetList.clear();
-            let matched = 0;
-            
-            request.targets.forEach(username => {
-                targetList.add(username);
-                // If we already intercepted this user while scrolling, add to queue immediately!
-                if (knownUsers.has(username) && !capturedUsers.find(u => u.username === username)) {
-                    capturedUsers.push({ username: username, id: knownUsers.get(username) });
-                    matched++;
-                }
-            });
-            console.log(`[Content Script] Imported CSV! Targets: ${targetList.size}. Immediately matched from memory: ${matched}`);
+            targetList = [...request.targets];
+            processedCount = 0;
+            console.log(`[Content Script] Loaded ${targetList.length} targets.`);
         }
         sendResponse({
             isRunning: isQueueRunning,
             queuePaused: queuePaused,
-            queueLength: capturedUsers.length,
-            targetSize: targetList.size
+            targetSize: targetList.length,
+            processedCount: processedCount
         });
     }
-    return true; // Keep message channel open for async response if needed
+    return true;
 });

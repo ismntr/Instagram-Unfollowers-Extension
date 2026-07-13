@@ -1,25 +1,21 @@
-# Instagram Unfollow Core 🚀
+# Instagram Unfollow Engine (Direct CSV) 🚀
 
-A Proof of Concept (PoC) Google Chrome Extension (Manifest V3) that automates the process of unfollowing users on Instagram safely and efficiently using **Network Interception**.
+A Proof of Concept (PoC) Google Chrome Extension (Manifest V3) that reads a CSV of Instagram usernames and sequentially unfollows them using direct API integration and randomized delays.
 
-## 🌟 Why this approach?
+## 🌟 How it works
 
-Traditional automation tools rely on DOM scraping (finding and clicking buttons on the screen). This is highly fragile on modern Single Page Applications (SPAs) like Instagram because class names change frequently, and Virtualized Lists only render a few items at a time.
-
-This extension uses **Network Interception**:
-1. It injects a script into the main execution world.
-2. It monkey-patches `window.fetch` and `XMLHttpRequest`.
-3. It silently listens to the JSON responses coming from Instagram's internal GraphQL/REST APIs when you open your "Following" list.
-4. It extracts user IDs and adds them to a queue without ever touching the DOM.
+This extension does not require you to scroll the page or interact with the DOM.
+1. You upload a CSV containing the usernames of people you want to unfollow.
+2. The extension queries Instagram's `web_profile_info` API to resolve the username into a numeric User ID.
+3. It sends a direct, authenticated `POST` request to Instagram's unfollow endpoint.
+4. It sleeps for a random duration (5-15 seconds) to simulate human behavior and avoid rate limits, then moves to the next user.
 
 ## ✨ Features
 
-- **Network Interception:** Captures user data directly from API responses.
-- **CSV Target List Integration:** Automatically unfollows the exact users you specify in an uploaded CSV file.
-- **Auto-Scroller & Background Matching:** Upload your CSV and click Start. The extension automatically scrolls your Instagram "Following" list and instantly matches usernames to hidden internal IDs to queue them up without you clicking anything.
-- **Randomized Human-like Delays:** Waits between 5 and 15 seconds before each unfollow action to simulate human behavior and avoid detection.
+- **Direct ID Resolution:** Finds the hidden internal ID for any Instagram username automatically.
+- **CSV Processing:** Just drop your CSV (username in the first column) and let it run.
+- **Randomized Human-like Delays:** Waits between 5 and 15 seconds before each unfollow action.
 - **Rate-Limit Handling:** Automatically pauses the queue for 15 minutes if Instagram returns a `429 Too Many Requests` status.
-- **Manifest V3 Compliant:** Built using modern, secure Chrome extension standards.
 
 ## ⚠️ Disclaimer
 
@@ -27,25 +23,19 @@ This extension uses **Network Interception**:
 
 ## 🛠 Installation (Developer Mode)
 
-Since this is an unpacked extension, you need to load it manually into Chrome:
-
 1. Download or clone this repository to your local machine.
 2. Open Google Chrome and navigate to `chrome://extensions/`.
 3. Enable **Developer mode** using the toggle switch in the top right corner.
 4. Click the **Load unpacked** button in the top left.
-5. Select the folder containing this project (the directory with `manifest.json`).
-6. The extension should now appear in your list of extensions. Pin it to your toolbar for easy access!
+5. Select the folder containing this project.
 
 ## 🚀 Usage
 
-1. Log in to your Instagram account on Chrome.
-2. Navigate to your profile and click on your **Following** list.
-3. Scroll down the list slightly. As you scroll, the extension intercepts the network requests and silently builds a queue of users.
-4. Click the **IG Unfollow Core** extension icon in your Chrome toolbar.
-5. Click **Choose File** and upload your CSV whitelist. The format should have usernames in the first column (e.g., `username,full_name`).
-6. The popup will update to show how many users have been queued from scrolling and how many are protected by the whitelist.
-7. Click **Start Engine**.
-8. Keep the Instagram tab open in the background. The extension will begin unfollowing users one by one with randomized delays.
+1. Log in to your Instagram account on Chrome and stay on any Instagram page.
+2. Click the extension icon in your Chrome toolbar.
+3. Click **Choose File** and upload your CSV. (Format: usernames in the first column, starting from row 2).
+4. Click **Start Engine**.
+5. Keep the Instagram tab open in the background. The extension will begin finding IDs and unfollowing users one by one.
 
 ## 📝 License
 

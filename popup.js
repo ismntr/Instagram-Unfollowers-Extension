@@ -3,8 +3,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const startBtn = document.getElementById('startBtn');
     const stopBtn = document.getElementById('stopBtn');
     const statusText = document.getElementById('statusText');
-    const queueCount = document.getElementById('queueCount');
     const targetCount = document.getElementById('targetCount');
+    const processedCount = document.getElementById('processedCount');
     const csvUpload = document.getElementById('csvUpload');
 
     // Function to send messages to the active tab's content script
@@ -36,11 +36,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Update UI based on state
     function updateUI(state) {
-        queueCount.textContent = state.queueLength || 0;
         targetCount.textContent = state.targetSize || 0;
+        processedCount.textContent = state.processedCount || 0;
 
         if (state.queuePaused) {
-            statusText.textContent = "Rate Limited (Paused)";
+            statusText.textContent = "Paused (Rate Limit)";
             statusText.className = "status-paused";
             startBtn.disabled = true;
             stopBtn.disabled = false;
@@ -86,20 +86,22 @@ document.addEventListener('DOMContentLoaded', function() {
         reader.onload = function(event) {
             const text = event.target.result;
             const lines = text.split('\n');
-            const importedWhitelist = [];
+            const importedTargets = [];
             
-            for (let i = 1; i < lines.length; i++) { // Skip header
+            // Assuming first column is username. Skip header if it exists.
+            // We'll skip the first line just in case, typical for CSVs.
+            for (let i = 1; i < lines.length; i++) {
                 const line = lines[i].trim();
                 if (line) {
                     const parts = line.split(',');
                     const username = parts[0].trim().replace(/^"|"$/g, ''); 
                     if (username) {
-                        importedWhitelist.push(username);
+                        importedTargets.push(username);
                     }
                 }
             }
 
-            sendMessageToContent("IMPORT_TARGETS", { targets: importedWhitelist }, updateUI);
+            sendMessageToContent("IMPORT_TARGETS", { targets: importedTargets }, updateUI);
             
             // Provide feedback in the UI
             csvUpload.value = ''; // Reset input

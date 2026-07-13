@@ -20,11 +20,5 @@
   "action": {
     "default_popup": "popup.html",
     "default_title": "Instagram Unfollow Core"
-  },
-  "web_accessible_resources": [
-    {
-      "resources": ["inject.js"],
-      "matches": ["*://*.instagram.com/*"]
-    }
-  ]
+  }
 }
