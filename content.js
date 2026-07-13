@@ -15,6 +15,7 @@ let targetList = new Set(); // Usernames to unfollow from CSV
 let capturedUsers = [];     // Queue of users who are in targetList AND we have their ID
 let isQueueRunning = false;
 let queuePaused = false;
+let autoScrollInterval = null;
 
 // Helper function to recursively search for user objects in unknown JSON structures
 function extractUsersFromPayload(obj, extracted = []) {
@@ -98,6 +99,63 @@ async function executeUnfollow(userId) {
 // Delay helper
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
+function startAutoScroll() {
+    if (autoScrollInterval) return;
+    console.log("[Content Script] Starting auto-scroller to hunt for targets...");
+    
+    let lastScrollTop = -1;
+    let sameScrollCount = 0;
+    
+    autoScrollInterval = setInterval(() => {
+        const dialogs = document.querySelectorAll('[role="dialog"]');
+        let scrolled = false;
+        
+        for (const dialog of dialogs) {
+            // Usually the scrollable container is a direct/deep div inside the dialog
+            const divs = dialog.querySelectorAll('div');
+            for (const div of divs) {
+                if (div.scrollHeight > div.clientHeight && div.clientHeight > 0) {
+                    // This looks like our scrollable list
+                    if (div.scrollTop === lastScrollTop) {
+                        sameScrollCount++;
+                        if (sameScrollCount > 4) {
+                            console.log("[Content Script] Auto-scroller reached the end of the list.");
+                            stopAutoScroll();
+                        }
+                    } else {
+                        lastScrollTop = div.scrollTop;
+                        sameScrollCount = 0;
+                        div.scrollTop = div.scrollHeight;
+                    }
+                    scrolled = true;
+                    break;
+                }
+            }
+            if (scrolled) break;
+        }
+        
+        // Fallback if dialog not found, try main window
+        if (!scrolled) {
+            if (window.scrollY === lastScrollTop) {
+                sameScrollCount++;
+                if (sameScrollCount > 4) stopAutoScroll();
+            } else {
+                lastScrollTop = window.scrollY;
+                sameScrollCount = 0;
+                window.scrollTo(0, document.body.scrollHeight);
+            }
+        }
+    }, 2500); // 2.5 seconds between scrolls
+}
+
+function stopAutoScroll() {
+    if (autoScrollInterval) {
+        clearInterval(autoScrollInterval);
+        autoScrollInterval = null;
+        console.log("[Content Script] Auto-scroller stopped.");
+    }
+}
+
 // Core Engine Orchestrator
 async function startQueue() {
     if (isQueueRunning) {
@@ -110,18 +168,22 @@ async function startQueue() {
         return; // Don't run if there's no one to unfollow
     }
 
-    if (capturedUsers.length === 0) {
-        console.warn("[Content Script] Queue is empty! Make sure you scroll through your 'Following' list on Instagram so we can match the usernames to IDs.");
-        return;
-    }
-
     isQueueRunning = true;
     console.log("[Content Script] Starting execution queue...");
+    
+    // Automatically start scrolling the page to find targets
+    startAutoScroll();
 
-    while (capturedUsers.length > 0 && isQueueRunning) {
+    while (isQueueRunning) {
         if (queuePaused) {
             // Check every 10 seconds if unpaused
             await delay(10000);
+            continue;
+        }
+
+        if (capturedUsers.length === 0) {
+            // Queue is empty, just idle and wait for the auto-scroller to find someone
+            await delay(3000);
             continue;
         }
 
@@ -158,15 +220,13 @@ async function startQueue() {
     }
     
     isQueueRunning = false;
-    if (capturedUsers.length === 0) {
-        console.log("[Content Script] Queue execution finished: No more users in queue.");
-    } else {
-        console.log("[Content Script] Queue execution stopped manually.");
-    }
+    stopAutoScroll();
+    console.log("[Content Script] Queue execution stopped.");
 }
 
 function stopQueue() {
     isQueueRunning = false;
+    stopAutoScroll();
     console.log("[Content Script] Stopping execution queue...");
 }
 
