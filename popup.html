@@ -68,6 +68,14 @@
         .status-running { color: #0095f6; font-weight: bold; }
         .status-stopped { color: #ed4956; font-weight: bold; }
         .status-paused { color: #f5a623; font-weight: bold; }
+        .file-upload {
+            margin-bottom: 15px;
+            font-size: 13px;
+        }
+        .file-upload input {
+            margin-top: 5px;
+            width: 100%;
+        }
     </style>
 </head>
 <body>
@@ -77,6 +85,11 @@
         <div>Status: <span id="statusText" class="status-stopped">Stopped</span></div>
         <div>Queued Users: <span id="queueCount">0</span></div>
         <div>Whitelist: <span id="whitelistCount">0</span></div>
+    </div>
+
+    <div class="file-upload">
+        <label for="csvUpload">Upload Whitelist (CSV):</label>
+        <input type="file" id="csvUpload" accept=".csv">
     </div>
 
     <button id="startBtn">Start Engine</button>

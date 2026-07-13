@@ -23,7 +23,7 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["inject.js", "igtracker_dont_follow_back_2026-07-13.csv"],
+      "resources": ["inject.js"],
       "matches": ["*://*.instagram.com/*"]
     }
   ]

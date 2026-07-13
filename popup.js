@@ -5,12 +5,19 @@ document.addEventListener('DOMContentLoaded', function() {
     const statusText = document.getElementById('statusText');
     const queueCount = document.getElementById('queueCount');
     const whitelistCount = document.getElementById('whitelistCount');
+    const csvUpload = document.getElementById('csvUpload');
 
     // Function to send messages to the active tab's content script
-    function sendMessageToContent(action, callback) {
+    function sendMessageToContent(action, payload, callback) {
+        if (typeof payload === 'function') {
+            callback = payload;
+            payload = {};
+        }
+        
         chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
             if (tabs[0] && tabs[0].url.includes("instagram.com")) {
-                chrome.tabs.sendMessage(tabs[0].id, { action: action }, function(response) {
+                const message = { action: action, ...payload };
+                chrome.tabs.sendMessage(tabs[0].id, message, function(response) {
                     if (chrome.runtime.lastError) {
                         console.error("Connection error:", chrome.runtime.lastError.message);
                         statusText.textContent = "Error: Refresh IG Page";
@@ -68,5 +75,38 @@ document.addEventListener('DOMContentLoaded', function() {
 
     stopBtn.addEventListener('click', () => {
         sendMessageToContent("STOP_QUEUE", updateUI);
+    });
+
+    // CSV File Upload Listener
+    csvUpload.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            const text = event.target.result;
+            const lines = text.split('\n');
+            const importedWhitelist = [];
+            
+            for (let i = 1; i < lines.length; i++) { // Skip header
+                const line = lines[i].trim();
+                if (line) {
+                    const parts = line.split(',');
+                    const username = parts[0].trim().replace(/^"|"$/g, ''); 
+                    if (username) {
+                        importedWhitelist.push(username);
+                    }
+                }
+            }
+
+            sendMessageToContent("IMPORT_WHITELIST", { whitelist: importedWhitelist }, updateUI);
+            
+            // Provide feedback in the UI
+            csvUpload.value = ''; // Reset input
+            statusText.textContent = "CSV Loaded!";
+            statusText.className = "status-running";
+            setTimeout(pollStatus, 2000); // Revert status text after 2s
+        };
+        reader.readAsText(file);
     });
 });

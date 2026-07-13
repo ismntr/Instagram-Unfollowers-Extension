@@ -90,38 +90,6 @@ async function executeUnfollow(userId) {
             console.error(`[Content Script] Failed to unfollow user ID: ${userId}. Status: ${response.status}`);
             return { success: false, error: 'REQUEST_FAILED', status: response.status };
         }
-    } catch (error) {
-        console.error(`[Content Script] Network error while unfollowing user ID: ${userId}`, error);
-        return { success: false, error: 'NETWORK_ERROR' };
-    }
-}
-
-// Load the whitelist from the bundled CSV
-async function loadWhitelist() {
-    try {
-        const url = chrome.runtime.getURL('igtracker_dont_follow_back_2026-07-13.csv');
-        const response = await fetch(url);
-        const text = await response.text();
-        
-        // Basic CSV parsing
-        const lines = text.split('\n');
-        for (let i = 1; i < lines.length; i++) { // Skip header
-            const line = lines[i].trim();
-            if (line) {
-                const parts = line.split(',');
-                // Assuming username is the first column, strip quotes if any
-                const username = parts[0].trim().replace(/^"|"$/g, ''); 
-                if (username) {
-                    whitelist.add(username);
-                }
-            }
-        }
-        console.log(`[Content Script] Whitelist loaded. Total protected users: ${whitelist.size}`);
-    } catch (e) {
-        console.error("[Content Script] Failed to load whitelist:", e);
-    }
-}
-
 // Delay helper
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -133,8 +101,7 @@ async function startQueue() {
     }
     
     if (whitelist.size === 0) {
-        console.log("[Content Script] Loading whitelist before starting...");
-        await loadWhitelist();
+        console.warn("[Content Script] Warning: Starting queue with an empty whitelist! No users will be protected.");
     }
 
     isQueueRunning = true;
@@ -251,6 +218,19 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         });
     } else if (request.action === "STOP_QUEUE") {
         stopQueue();
+        sendResponse({
+            isRunning: isQueueRunning,
+            queuePaused: queuePaused,
+            queueLength: capturedUsers.length,
+            whitelistSize: whitelist.size
+        });
+    } else if (request.action === "IMPORT_WHITELIST") {
+        if (request.whitelist && Array.isArray(request.whitelist)) {
+            // Clear existing whitelist and load the new one
+            whitelist.clear();
+            request.whitelist.forEach(username => whitelist.add(username));
+            console.log(`[Content Script] Imported custom whitelist. Total size: ${whitelist.size}`);
+        }
         sendResponse({
             isRunning: isQueueRunning,
             queuePaused: queuePaused,

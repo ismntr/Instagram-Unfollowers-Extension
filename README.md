@@ -41,9 +41,10 @@ Since this is an unpacked extension, you need to load it manually into Chrome:
 2. Navigate to your profile and click on your **Following** list.
 3. Scroll down the list slightly. As you scroll, the extension intercepts the network requests and silently builds a queue of users.
 4. Click the **IG Unfollow Core** extension icon in your Chrome toolbar.
-5. The popup will show you how many users have been queued and how many are protected by the whitelist.
-6. Click **Start Engine**.
-7. Keep the Instagram tab open in the background. The extension will begin unfollowing users one by one with randomized delays.
+5. Click **Choose File** and upload your CSV whitelist. The format should have usernames in the first column (e.g., `username,full_name`).
+6. The popup will update to show how many users have been queued from scrolling and how many are protected by the whitelist.
+7. Click **Start Engine**.
+8. Keep the Instagram tab open in the background. The extension will begin unfollowing users one by one with randomized delays.
 
 ## 📝 License
 
