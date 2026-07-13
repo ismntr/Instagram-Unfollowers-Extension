@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "Instagram Unfollow Core",
+  "version": "0.1.0",
+  "description": "Proof of Concept for intercepting Instagram network requests",
+  "permissions": [
+    "scripting",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "*://*.instagram.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["*://*.instagram.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Instagram Unfollow Core"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["inject.js", "igtracker_dont_follow_back_2026-07-13.csv"],
+      "matches": ["*://*.instagram.com/*"]
+    }
+  ]
+}

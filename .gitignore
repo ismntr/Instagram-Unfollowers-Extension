@@ -1,0 +1,12 @@
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Ignore other CSV files except the PoC hardcoded one
+*.csv
+!igtracker_dont_follow_back_2026-07-13.csv

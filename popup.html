@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>IG Unfollow Core</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            width: 250px;
+            padding: 15px;
+            margin: 0;
+            background-color: #fafafa;
+            color: #262626;
+        }
+        h2 {
+            font-size: 16px;
+            margin-top: 0;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        .stats {
+            background: #fff;
+            border: 1px solid #dbdbdb;
+            border-radius: 4px;
+            padding: 10px;
+            margin-bottom: 15px;
+            font-size: 14px;
+        }
+        .stats div {
+            margin-bottom: 5px;
+        }
+        .stats div:last-child {
+            margin-bottom: 0;
+        }
+        button {
+            width: 100%;
+            padding: 8px 0;
+            margin-bottom: 10px;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        #startBtn {
+            background-color: #0095f6;
+            color: white;
+        }
+        #startBtn:hover {
+            background-color: #1877f2;
+        }
+        #startBtn:disabled {
+            background-color: #b2dffc;
+            cursor: not-allowed;
+        }
+        #stopBtn {
+            background-color: #ed4956;
+            color: white;
+        }
+        #stopBtn:hover {
+            background-color: #ed1c24;
+        }
+        #stopBtn:disabled {
+            background-color: #f7a6ab;
+            cursor: not-allowed;
+        }
+        .status-running { color: #0095f6; font-weight: bold; }
+        .status-stopped { color: #ed4956; font-weight: bold; }
+        .status-paused { color: #f5a623; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h2>IG Unfollow Core</h2>
+    
+    <div class="stats">
+        <div>Status: <span id="statusText" class="status-stopped">Stopped</span></div>
+        <div>Queued Users: <span id="queueCount">0</span></div>
+        <div>Whitelist: <span id="whitelistCount">0</span></div>
+    </div>
+
+    <button id="startBtn">Start Engine</button>
+    <button id="stopBtn" disabled>Stop Engine</button>
+
+    <script src="popup.js"></script>
+</body>
+</html>
