@@ -10,10 +10,9 @@ script.onload = function() {
 (document.head || document.documentElement).appendChild(script);
 
 // Store captured users for processing
-let capturedUsers = [];
-
-// Whitelist and Queue State
-let whitelist = new Set();
+let knownUsers = new Map(); // Maps username -> user_id
+let targetList = new Set(); // Usernames to unfollow from CSV
+let capturedUsers = [];     // Queue of users who are in targetList AND we have their ID
 let isQueueRunning = false;
 let queuePaused = false;
 
@@ -106,8 +105,14 @@ async function startQueue() {
         return;
     }
     
-    if (whitelist.size === 0) {
-        console.warn("[Content Script] Warning: Starting queue with an empty whitelist! No users will be protected.");
+    if (targetList.size === 0) {
+        console.warn("[Content Script] Warning: Target list is empty! Upload a CSV first.");
+        return; // Don't run if there's no one to unfollow
+    }
+
+    if (capturedUsers.length === 0) {
+        console.warn("[Content Script] Queue is empty! Make sure you scroll through your 'Following' list on Instagram so we can match the usernames to IDs.");
+        return;
     }
 
     isQueueRunning = true;
@@ -121,12 +126,6 @@ async function startQueue() {
         }
 
         const user = capturedUsers[0]; // Peek the first user
-        
-        if (whitelist.has(user.username)) {
-            console.log(`[Content Script] SKIP: User ${user.username} is in the whitelist.`);
-            capturedUsers.shift(); // Remove from queue
-            continue;
-        }
         
         console.log(`[Content Script] Action: Unfollowing ${user.username} (ID: ${user.id})...`);
         const result = await executeUnfollow(user.id);
@@ -186,20 +185,22 @@ window.addEventListener("message", function(event) {
         
         const extracted = extractUsersFromPayload(payload.data);
         if (extracted.length > 0) {
-            console.log(`[Content Script] Extracted ${extracted.length} users from payload!`);
-            
-            // Add to our global list avoiding duplicates
             let newAdditions = 0;
+            
             extracted.forEach(newUser => {
-                if (!capturedUsers.find(u => u.id === newUser.id)) {
+                // Save to known users database
+                knownUsers.set(newUser.username, newUser.id);
+                
+                // If they are a target and not already in queue, queue them!
+                if (targetList.has(newUser.username) && !capturedUsers.find(u => u.id === newUser.id)) {
                     capturedUsers.push(newUser);
                     newAdditions++;
                 }
             });
             
             if (newAdditions > 0) {
-                console.log(`[Content Script] Added ${newAdditions} new users. Total captured users in queue: ${capturedUsers.length}`);
-                console.table(capturedUsers.slice(-newAdditions)); // Log just the newly added ones for clean console
+                console.log(`[Content Script] Matched ${newAdditions} target users! Total in queue: ${capturedUsers.length}`);
+                console.table(capturedUsers.slice(-newAdditions));
             }
         }
     }
@@ -212,7 +213,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             isRunning: isQueueRunning,
             queuePaused: queuePaused,
             queueLength: capturedUsers.length,
-            whitelistSize: whitelist.size
+            targetSize: targetList.size
         });
     } else if (request.action === "START_QUEUE") {
         startQueue();
@@ -220,7 +221,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             isRunning: isQueueRunning,
             queuePaused: queuePaused,
             queueLength: capturedUsers.length,
-            whitelistSize: whitelist.size
+            targetSize: targetList.size
         });
     } else if (request.action === "STOP_QUEUE") {
         stopQueue();
@@ -228,20 +229,28 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             isRunning: isQueueRunning,
             queuePaused: queuePaused,
             queueLength: capturedUsers.length,
-            whitelistSize: whitelist.size
+            targetSize: targetList.size
         });
-    } else if (request.action === "IMPORT_WHITELIST") {
-        if (request.whitelist && Array.isArray(request.whitelist)) {
-            // Clear existing whitelist and load the new one
-            whitelist.clear();
-            request.whitelist.forEach(username => whitelist.add(username));
-            console.log(`[Content Script] Imported custom whitelist. Total size: ${whitelist.size}`);
+    } else if (request.action === "IMPORT_TARGETS") {
+        if (request.targets && Array.isArray(request.targets)) {
+            targetList.clear();
+            let matched = 0;
+            
+            request.targets.forEach(username => {
+                targetList.add(username);
+                // If we already intercepted this user while scrolling, add to queue immediately!
+                if (knownUsers.has(username) && !capturedUsers.find(u => u.username === username)) {
+                    capturedUsers.push({ username: username, id: knownUsers.get(username) });
+                    matched++;
+                }
+            });
+            console.log(`[Content Script] Imported CSV! Targets: ${targetList.size}. Immediately matched from memory: ${matched}`);
         }
         sendResponse({
             isRunning: isQueueRunning,
             queuePaused: queuePaused,
             queueLength: capturedUsers.length,
-            whitelistSize: whitelist.size
+            targetSize: targetList.size
         });
     }
     return true; // Keep message channel open for async response if needed

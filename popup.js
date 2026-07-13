@@ -4,7 +4,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const stopBtn = document.getElementById('stopBtn');
     const statusText = document.getElementById('statusText');
     const queueCount = document.getElementById('queueCount');
-    const whitelistCount = document.getElementById('whitelistCount');
+    const targetCount = document.getElementById('targetCount');
     const csvUpload = document.getElementById('csvUpload');
 
     // Function to send messages to the active tab's content script
@@ -37,7 +37,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Update UI based on state
     function updateUI(state) {
         queueCount.textContent = state.queueLength || 0;
-        whitelistCount.textContent = state.whitelistSize || 0;
+        targetCount.textContent = state.targetSize || 0;
 
         if (state.queuePaused) {
             statusText.textContent = "Rate Limited (Paused)";
@@ -99,7 +99,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
 
-            sendMessageToContent("IMPORT_WHITELIST", { whitelist: importedWhitelist }, updateUI);
+            sendMessageToContent("IMPORT_TARGETS", { targets: importedWhitelist }, updateUI);
             
             // Provide feedback in the UI
             csvUpload.value = ''; // Reset input

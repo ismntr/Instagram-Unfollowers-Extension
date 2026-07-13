@@ -15,7 +15,8 @@ This extension uses **Network Interception**:
 ## ✨ Features
 
 - **Network Interception:** Captures user data directly from API responses.
-- **CSV Whitelist Integration:** Automatically cross-references captured users with a local CSV file (`igtracker_dont_follow_back_2026-07-13.csv`) to prevent unfollowing specific accounts.
+- **CSV Target List Integration:** Automatically unfollows the exact users you specify in an uploaded CSV file.
+- **Background Matching:** Upload your CSV, scroll through your Instagram "Following" list, and the extension instantly matches usernames to hidden internal IDs to queue them up.
 - **Randomized Human-like Delays:** Waits between 5 and 15 seconds before each unfollow action to simulate human behavior and avoid detection.
 - **Rate-Limit Handling:** Automatically pauses the queue for 15 minutes if Instagram returns a `429 Too Many Requests` status.
 - **Manifest V3 Compliant:** Built using modern, secure Chrome extension standards.
