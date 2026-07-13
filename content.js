@@ -90,6 +90,12 @@ async function executeUnfollow(userId) {
             console.error(`[Content Script] Failed to unfollow user ID: ${userId}. Status: ${response.status}`);
             return { success: false, error: 'REQUEST_FAILED', status: response.status };
         }
+    } catch (error) {
+        console.error(`[Content Script] Network error while unfollowing user ID: ${userId}`, error);
+        return { success: false, error: 'NETWORK_ERROR' };
+    }
+}
+
 // Delay helper
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
