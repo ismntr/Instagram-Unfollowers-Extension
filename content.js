@@ -17,28 +17,42 @@ function getCsrfToken() {
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 async function resolveUsernameToId(username, retryCount = 0) {
-    console.log(`[Content Script] Resolving ID for username: ${username} (Attempt ${retryCount + 1})`);
-    const url = `https://www.instagram.com/api/v1/users/web_profile_info/?username=${username}`;
+    console.log(`[Content Script] Ziyaret ediliyor (HTML Fetch): https://www.instagram.com/${username}/ (Deneme ${retryCount + 1})`);
+    const url = `https://www.instagram.com/${username}/`;
     
     try {
         const response = await fetch(url, {
             headers: {
-                'X-IG-App-ID': IG_APP_ID,
-                'X-CSRFToken': getCsrfToken(),
-                'Accept': '*/*'
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
             }
         });
 
         if (response.status === 200) {
-            const data = await response.json();
-            if (data && data.data && data.data.user) {
-                return { success: true, id: data.data.user.id };
+            const html = await response.text();
+            
+            // 1. Arama Yöntemi: Meta etiketlerinden ID'yi bulmak (En garantilisi)
+            // <meta property="al:ios:url" content="instagram://user?username=kullanici&id=123456789" />
+            const metaMatch = html.match(/instagram:\/\/user\?username=[^&]+&id=([0-9]+)/);
+            if (metaMatch && metaMatch[1]) {
+                return { success: true, id: metaMatch[1] };
             }
-            return { success: false, error: 'USER_NOT_FOUND' };
+            
+            // 2. Arama Yöntemi: JSON veri bloklarının içinden bulmak
+            const profileMatch = html.match(/"profilePage_([0-9]+)"/);
+            if (profileMatch && profileMatch[1]) {
+                return { success: true, id: profileMatch[1] };
+            }
+            
+            const userMatch = html.match(/"user_id":"([0-9]+)"/);
+            if (userMatch && userMatch[1]) {
+                return { success: true, id: userMatch[1] };
+            }
+
+            return { success: false, error: 'USER_NOT_FOUND_IN_HTML' };
         } else if (response.status === 429) {
             if (retryCount < 3) {
                 const waitTime = Math.pow(2, retryCount) * 5000;
-                console.warn(`[Content Script] Rate limited resolving ${username}. Retrying in ${waitTime}ms...`);
+                console.warn(`[Content Script] Instagram HTML sayfası için Rate Limit verdi. ${waitTime}ms bekleniyor...`);
                 await delay(waitTime);
                 return await resolveUsernameToId(username, retryCount + 1);
             }
