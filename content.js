@@ -16,8 +16,8 @@ function getCsrfToken() {
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-async function resolveUsernameToId(username) {
-    console.log(`[Content Script] Resolving ID for username: ${username}`);
+async function resolveUsernameToId(username, retryCount = 0) {
+    console.log(`[Content Script] Resolving ID for username: ${username} (Attempt ${retryCount + 1})`);
     const url = `https://www.instagram.com/api/v1/users/web_profile_info/?username=${username}`;
     
     try {
@@ -36,6 +36,12 @@ async function resolveUsernameToId(username) {
             }
             return { success: false, error: 'USER_NOT_FOUND' };
         } else if (response.status === 429) {
+            if (retryCount < 3) {
+                const waitTime = Math.pow(2, retryCount) * 5000;
+                console.warn(`[Content Script] Rate limited resolving ${username}. Retrying in ${waitTime}ms...`);
+                await delay(waitTime);
+                return await resolveUsernameToId(username, retryCount + 1);
+            }
             return { success: false, error: 'RATE_LIMITED' };
         } else if (response.status === 404) {
             return { success: false, error: 'USER_NOT_FOUND' };
