@@ -17,7 +17,6 @@ function getCsrfToken() {
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 async function resolveUsernameToId(username, retryCount = 0) {
-    console.log(`[Content Script] Ziyaret ediliyor (HTML Fetch): https://www.instagram.com/${username}/ (Deneme ${retryCount + 1})`);
     const url = `https://www.instagram.com/${username}/`;
     
     try {
@@ -133,45 +132,46 @@ async function startQueue() {
         
         if (resolveResult.success) {
             const userId = resolveResult.id;
-            console.log(`[Content Script] Found ID for ${username}: ${userId}. Unfollowing...`);
             
-            // 2. Wait 2 seconds between profile fetch and unfollow to simulate realistic delay
+            // 2. Wait 2 seconds between profile fetch and unfollow
             await delay(2000);
             
             // 3. Unfollow
             const unfollowResult = await executeUnfollow(userId);
             
             if (unfollowResult.success) {
-                console.log(`[Content Script] Successfully unfollowed: ${username}`);
                 targetList.shift();
                 processedCount++;
                 
                 // 4. Random delay (5 - 15 seconds)
                 const sleepTime = Math.floor(Math.random() * 10000) + 5000;
-                console.log(`[Content Script] Sleeping for ${sleepTime}ms...`);
+                const total = processedCount + targetList.length;
+                
+                console.log(`[Content Script] ✅ [${processedCount}/${total}] Unfollowed: ${username} (Sleeping ${(sleepTime/1000).toFixed(1)}s...)`);
+                
                 await delay(sleepTime);
                 
             } else if (unfollowResult.error === 'RATE_LIMITED') {
-                console.warn("[Content Script] RATE LIMITED during unfollow. Pausing for 15 mins.");
+                console.error(`[Content Script] ❌ RATE LIMIT ERROR while unfollowing ${username}. Instagram returned 429 Too Many Requests. Action: Pausing queue for 15 minutes to prevent account ban.`);
                 queuePaused = true;
                 setTimeout(() => { queuePaused = false; }, 15 * 60 * 1000);
             } else {
-                console.error(`[Content Script] Unfollow failed for ${username}: ${unfollowResult.error}`);
-                targetList.shift(); // skip to next
+                console.error(`[Content Script] ❌ UNFOLLOW FAILED for ${username} (ID: ${userId}). Error Code: ${unfollowResult.error}. Action: Skipping to next user in 5s.`);
+                targetList.shift(); 
                 await delay(5000);
             }
             
         } else if (resolveResult.error === 'RATE_LIMITED') {
-            console.warn("[Content Script] RATE LIMITED during ID resolution. Pausing for 15 mins.");
+            console.error(`[Content Script] ❌ RATE LIMIT ERROR while fetching profile for ${username}. Instagram returned 429 Too Many Requests. Action: Pausing queue for 15 minutes to prevent account ban.`);
             queuePaused = true;
             setTimeout(() => { queuePaused = false; }, 15 * 60 * 1000);
-        } else if (resolveResult.error === 'USER_NOT_FOUND') {
-            console.log(`[Content Script] User ${username} not found (maybe changed name or deleted). Skipping.`);
+        } else if (resolveResult.error === 'USER_NOT_FOUND' || resolveResult.error === 'USER_NOT_FOUND_IN_HTML') {
+            console.warn(`[Content Script] ⚠️ SKIPPED: ${username} not found. They might have changed their username or deleted their account.`);
             targetList.shift();
-            processedCount++; // count as processed so progress bar moves
+            processedCount++; 
             await delay(2000);
         } else {
-            console.error(`[Content Script] Failed to resolve ${username}: ${resolveResult.error}`);
+            console.error(`[Content Script] ❌ RESOLVE FAILED for ${username}. Error Code: ${resolveResult.error}. Could not extract numeric ID from HTML. Action: Skipping to next user in 5s.`);
             targetList.shift();
             await delay(5000);
         }
