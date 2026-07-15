@@ -22,6 +22,7 @@ async function resolveUsernameToId(username, retryCount = 0) {
     
     try {
         const response = await fetch(url, {
+            credentials: 'include',
             headers: {
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
             }
@@ -71,21 +72,35 @@ async function executeUnfollow(userId) {
     const csrfToken = getCsrfToken();
     if (!csrfToken) return { success: false, error: 'NO_CSRF_TOKEN' };
 
-    const url = `https://www.instagram.com/web/friendships/${userId}/unfollow/`;
+    // Modern API endpoint for unfollowing
+    const url = `https://www.instagram.com/api/v1/friendships/destroy/${userId}/`;
     
     try {
         const response = await fetch(url, {
             method: 'POST',
+            credentials: 'include',
             headers: {
                 'X-CSRFToken': csrfToken,
                 'X-IG-App-ID': IG_APP_ID,
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-Instagram-AJAX': '1',
                 'Content-Type': 'application/x-www-form-urlencoded',
-                'Accept': '*/*'
-            }
+                'Accept': 'application/json, text/plain, */*'
+            },
+            body: 'container_module=profile'
         });
 
         if (response.status === 200) {
-            return { success: true };
+            try {
+                const data = await response.json();
+                if (data && data.status === 'ok') {
+                    return { success: true };
+                } else {
+                    return { success: false, error: 'JSON_STATUS_NOT_OK' };
+                }
+            } catch (e) {
+                return { success: false, error: 'NOT_JSON_RESPONSE_POSSIBLE_REDIRECT' };
+            }
         } else if (response.status === 429) {
             return { success: false, error: 'RATE_LIMITED' };
         }
