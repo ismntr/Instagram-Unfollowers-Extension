@@ -4,13 +4,9 @@ A Proof of Concept (PoC) Google Chrome Extension (Manifest V3) that reads a CSV 
 
 ## 🌟 How it works
 
-This extension works in two phases: first you generate a CSV of users you don't want to follow anymore, and then this extension processes that list.
+This extension automates the process of unfollowing users on Instagram. It is designed to work safely in the background with human-like delays (15-30 seconds per action) to protect your account from rate limits.
 
-1. **Prerequisite (Generating the CSV):** Use the [IG Tracker - Followers & Unfollowers](https://chromewebstore.google.com/detail/ig-tracker-%E2%80%93-followers-un/gpnpbncjakifkeechdhlajmpmliablmc) Chrome extension to find out who is not following you back, and export that list as a CSV file.
-2. **Execution:** You upload that CSV to this extension.
-3. The extension queries Instagram's `web_profile_info` API to resolve the username into a numeric User ID.
-4. It sends a direct, authenticated `POST` request to Instagram's unfollow endpoint.
-5. It sleeps for a random duration (15-30 seconds) to simulate human behavior and avoid rate limits, then moves to the next user.
+You simply provide it with a CSV list of usernames you want to unfollow, and the engine takes care of the rest by automatically finding their internal IDs and sending the unfollow requests.
 
 ## ✨ Features
 
@@ -23,27 +19,28 @@ This extension works in two phases: first you generate a CSV of users you don't 
 
 **This project is for educational purposes and as a Proof of Concept only.** Automating actions on Instagram violates their Terms of Service. Use this at your own risk. The authors are not responsible for any account bans, suspensions, or restrictions that may occur from using this software.
 
-## 🛠 Installation (Developer Mode)
+## 🚀 How to Use (Step-by-Step)
 
-1. Download or clone this repository to your local machine.
-2. Open Google Chrome and navigate to `chrome://extensions/`.
-3. Enable **Developer mode** using the toggle switch in the top right corner.
-4. Click the **Load unpacked** button in the top left.
-5. Select the folder containing this project.
+### Step 1: Install This Extension (Developer Mode)
+Since this is a custom tool, you need to load it manually:
+1. Download or clone this project folder to your computer.
+2. Open Chrome and go to `chrome://extensions/`.
+3. Turn on **Developer mode** (top right switch).
+4. Click **Load unpacked** (top left button) and select this project folder.
 
-## 🚀 Usage
-
-### Step 1: Get Your Unfollow List
+### Step 2: Get Your Unfollow List (CSV)
+We need a list of people who don't follow you back. 
 1. Install [IG Tracker - Followers & Unfollowers](https://chromewebstore.google.com/detail/ig-tracker-%E2%80%93-followers-un/gpnpbncjakifkeechdhlajmpmliablmc) from the Chrome Web Store.
-2. Run IG Tracker on your Instagram profile to find users who don't follow you back.
-3. Export this list as a CSV file.
+2. Open Instagram, click the IG Tracker icon, type your username and run the scan.
+3. Go to the **"Not following back"** tab in IG Tracker.
+4. Click the download button to save this list as a **CSV file**.
 
-### Step 2: Run the Unfollower
-1. Log in to your Instagram account on Chrome and stay on any Instagram page.
-2. Click this extension's icon in your Chrome toolbar.
-3. Click **Choose File** and upload the CSV you exported in Step 1.
+### Step 3: Run the Unfollow Engine
+1. Keep your Instagram page open and make sure you are logged in.
+2. Click **our extension's icon** (Instagram Unfollower Extension) in the Chrome toolbar.
+3. Click **Choose File** and upload the CSV you just downloaded.
 4. Click **Start Engine**.
-5. Keep the Instagram tab open in the background. The extension will begin finding IDs and unfollowing users safely one by one.
+5. Leave the Instagram tab open in the background. The extension will slowly and safely unfollow them one by one!
 
 ## 📝 License
 
@@ -57,13 +54,9 @@ Instagram kullanıcı adlarını içeren bir CSV dosyasını okuyan ve doğrudan
 
 ## 🌟 Nasıl çalışır
 
-Bu eklenti iki aşamalı çalışır: Önce sizi takip etmeyenlerin olduğu bir CSV dosyası oluşturursunuz, ardından bu eklenti o listeyi işler.
+Bu eklenti, Instagram'da toplu takipten çıkma işlemini tamamen otomatikleştirir. Hesabınızı spama düşürmemek için işlemler arasına insan davranışına benzer rastgele beklemeler (15-30 saniye) koyarak arka planda güvenle çalışır.
 
-1. **Ön Koşul (CSV Oluşturma):** Sizi geri takip etmeyenleri bulmak ve bu listeyi bir CSV dosyası olarak dışa aktarmak için [IG Tracker - Followers & Unfollowers](https://chromewebstore.google.com/detail/ig-tracker-%E2%80%93-followers-un/gpnpbncjakifkeechdhlajmpmliablmc) Chrome eklentisini kullanın.
-2. **Çalıştırma:** Çıkardığınız CSV dosyasını bu eklentiye yüklersiniz.
-3. Eklenti, kullanıcı adını sayısal bir Kullanıcı ID'sine dönüştürmek için Instagram'ın `web_profile_info` API'sini sorgular.
-4. Instagram'ın unfollow (takipten çıkma) uç noktasına doğrudan, kimlik doğrulamalı bir `POST` isteği gönderir.
-5. Hız sınırlarına (rate limits) takılmamak ve insan davranışını taklit etmek için rastgele bir süre (15-30 saniye) bekler, ardından bir sonraki kullanıcıya geçer.
+Tek yapmanız gereken, takipten çıkmak istediğiniz kişilerin listesini bir CSV dosyası olarak eklentiye yüklemektir. Eklenti geri kalan her şeyi halleder.
 
 ## ✨ Özellikler
 
@@ -76,27 +69,28 @@ Bu eklenti iki aşamalı çalışır: Önce sizi takip etmeyenlerin olduğu bir 
 
 **Bu proje sadece eğitim amaçlıdır ve bir Proof of Concept (Konsept Kanıtı) niteliğindedir.** Instagram üzerinde işlemleri otomatikleştirmek, Instagram'ın Hizmet Şartları'nı ihlal eder. Kullanım riski tamamen size aittir. Bu yazılımın kullanımından doğabilecek herhangi bir hesap yasaklaması, askıya alma veya kısıtlamadan yazarlar sorumlu değildir.
 
-## 🛠 Kurulum (Geliştirici Modu)
+## 🚀 Adım Adım Kullanım
 
-1. Bu depoyu bilgisayarınıza indirin veya klonlayın.
-2. Google Chrome'u açın ve `chrome://extensions/` adresine gidin.
-3. Sağ üst köşedeki düğmeyi kullanarak **Geliştirici modunu (Developer mode)** etkinleştirin.
-4. Sol üstteki **Paketlenmemiş öğe yükle (Load unpacked)** düğmesine tıklayın.
-5. Bu projenin bulunduğu klasörü seçin.
+### 1. Adım: Bu Eklentiyi Kurma (Geliştirici Modu)
+Bu özel bir araç olduğu için mağazadan değil, manuel yüklememiz gerekiyor:
+1. Bu projeyi bilgisayarınıza indirin ve klasöre çıkartın.
+2. Google Chrome'da yeni bir sekme açın ve adres çubuğuna `chrome://extensions/` yazıp gidin.
+3. Sağ üst köşedeki **Geliştirici modu (Developer mode)** anahtarını açın.
+4. Sol üstteki **Paketlenmemiş öğe yükle (Load unpacked)** butonuna basıp, indirdiğiniz proje klasörünü seçin.
 
-## 🚀 Kullanım
+### 2. Adım: Çıkılacaklar Listesini Alma (CSV)
+Önce bizi takip etmeyenlerin listesini bulmamız lazım:
+1. Chrome Web Mağazası'ndan [IG Tracker](https://chromewebstore.google.com/detail/ig-tracker-%E2%80%93-followers-un/gpnpbncjakifkeechdhlajmpmliablmc) eklentisini kurun.
+2. Instagram'ı açın, IG Tracker simgesine tıklayın, kullanıcı adınızı yazıp taramayı başlatın.
+3. Tarama bitince **"Not following back"** (Geri takip etmeyenler) sekmesine geçin.
+4. Oradaki indirme (download) ikonuna tıklayarak bu listeyi **CSV dosyası** olarak bilgisayarınıza kaydedin.
 
-### 1. Adım: Takipten Çıkılacaklar Listesini Alma
-1. Chrome Web Mağazası'ndan [IG Tracker - Followers & Unfollowers](https://chromewebstore.google.com/detail/ig-tracker-%E2%80%93-followers-un/gpnpbncjakifkeechdhlajmpmliablmc) eklentisini yükleyin.
-2. Sizi geri takip etmeyen kullanıcıları bulmak için IG Tracker'ı çalıştırın.
-3. Bu listeyi bir CSV dosyası olarak dışa aktarın.
-
-### 2. Adım: Unfollower Eklentisini Çalıştırma
-1. Chrome'da Instagram hesabınıza giriş yapın ve herhangi bir Instagram sayfasında açık kalın.
-2. Chrome araç çubuğundaki bu eklentinin simgesine tıklayın.
-3. **Dosya Seç (Choose File)** butonuna tıklayın ve 1. Adımda dışa aktardığınız CSV'yi yükleyin.
-4. **Start Engine** düğmesine tıklayın.
-5. Arka planda Instagram sekmesini açık tutun. Eklenti, ID'leri bulmaya ve kullanıcıları güvenli bir şekilde tek tek takipten çıkarmaya başlayacaktır.
+### 3. Adım: Takipten Çıkma Motorunu Çalıştırma
+1. Chrome'da kendi Instagram sayfanızın açık ve giriş yapılmış olduğundan emin olun.
+2. Chrome araç çubuğundan **bizim eklentinin (Instagram Unfollower Extension)** simgesine tıklayın.
+3. **Dosya Seç (Choose File)** butonuna basıp 2. Adımda indirdiğiniz CSV dosyasını seçin.
+4. **Start Engine** butonuna tıklayın.
+5. Instagram sekmesini kapatmayın, arka planda açık kalsın. Eklenti yavaş ve güvenli bir şekilde herkesi takipten çıkmaya başlayacaktır!
 
 ## 📝 Lisans
 
