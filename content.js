@@ -67,46 +67,69 @@ async function resolveUsernameToId(username, retryCount = 0) {
     }
 }
 
-async function executeUnfollow(userId) {
+async function executeUnfollow(userId, username) {
     const csrfToken = getCsrfToken();
     if (!csrfToken) return { success: false, error: 'NO_CSRF_TOKEN' };
 
-    // Modern API endpoint for unfollowing
-    const url = `https://www.instagram.com/api/v1/friendships/destroy/${userId}/`;
-    
-    try {
-        const response = await fetch(url, {
-            method: 'POST',
-            credentials: 'include',
-            headers: {
-                'X-CSRFToken': csrfToken,
-                'X-IG-App-ID': IG_APP_ID,
-                'X-Requested-With': 'XMLHttpRequest',
-                'X-Instagram-AJAX': '1',
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'Accept': 'application/json, text/plain, */*'
-            },
-            body: 'container_module=profile'
-        });
-
-        if (response.status === 200) {
-            try {
-                const data = await response.json();
-                if (data && data.status === 'ok') {
-                    return { success: true };
-                } else {
-                    return { success: false, error: 'JSON_STATUS_NOT_OK' };
-                }
-            } catch (e) {
-                return { success: false, error: 'NOT_JSON_RESPONSE_POSSIBLE_REDIRECT' };
-            }
-        } else if (response.status === 429) {
-            return { success: false, error: 'RATE_LIMITED' };
+    // Strategy list: try multiple endpoint/body combinations
+    const strategies = [
+        {
+            name: 'v1_destroy',
+            url: `https://www.instagram.com/api/v1/friendships/destroy/${userId}/`,
+            body: ''
+        },
+        {
+            name: 'web_unfollow',
+            url: `https://www.instagram.com/web/friendships/${userId}/unfollow/`,
+            body: ''
         }
-        return { success: false, error: `HTTP_${response.status}` };
-    } catch (error) {
-        return { success: false, error: 'NETWORK_ERROR' };
+    ];
+
+    for (const strategy of strategies) {
+        try {
+            const response = await fetch(strategy.url, {
+                method: 'POST',
+                credentials: 'include',
+                headers: {
+                    'X-CSRFToken': csrfToken,
+                    'X-IG-App-ID': IG_APP_ID,
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Accept': '*/*'
+                },
+                body: strategy.body
+            });
+
+            if (response.status === 200) {
+                try {
+                    const data = await response.json();
+                    if (data && data.status === 'ok') {
+                        return { success: true, strategy: strategy.name };
+                    } else {
+                        console.warn(`[Content Script] ⚠️ [${strategy.name}] ${username}: HTTP 200 but status not ok. Response:`, JSON.stringify(data));
+                    }
+                } catch (e) {
+                    const text = await response.clone().text().catch(() => 'unreadable');
+                    console.warn(`[Content Script] ⚠️ [${strategy.name}] ${username}: HTTP 200 but not JSON. Body: ${text.substring(0, 200)}`);
+                }
+            } else if (response.status === 429) {
+                return { success: false, error: 'RATE_LIMITED' };
+            } else {
+                // Log the actual error body from Instagram so we know WHY it failed
+                let errorBody = '';
+                try { errorBody = await response.text(); } catch(e) {}
+                console.error(`[Content Script] ❌ [${strategy.name}] ${username} (ID: ${userId}): HTTP ${response.status}. Response body: ${errorBody.substring(0, 300)}`);
+                // If 400, try next strategy
+                if (response.status === 400) continue;
+                return { success: false, error: `HTTP_${response.status}` };
+            }
+        } catch (error) {
+            console.error(`[Content Script] ❌ [${strategy.name}] ${username}: Network error:`, error.message);
+            continue;
+        }
     }
+
+    return { success: false, error: 'ALL_STRATEGIES_FAILED' };
 }
 
 async function startQueue() {
@@ -137,7 +160,7 @@ async function startQueue() {
             await delay(2000);
             
             // 3. Unfollow
-            const unfollowResult = await executeUnfollow(userId);
+            const unfollowResult = await executeUnfollow(userId, username);
             
             if (unfollowResult.success) {
                 targetList.shift();
