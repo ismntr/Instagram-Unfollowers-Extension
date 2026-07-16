@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Instagram Unfollow Core",
-  "version": "0.1.0",
-  "description": "Proof of Concept for intercepting Instagram network requests",
+  "name": "Instagram Unfollower Extension",
+  "version": "1.0.0",
+  "description": "Bulk unfollow Instagram users from a CSV file with smart rate-limit protection.",
   "permissions": [
     "scripting",
     "activeTab"
@@ -19,6 +19,6 @@
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Instagram Unfollow Core"
+    "default_title": "Instagram Unfollower Extension"
   }
 }
