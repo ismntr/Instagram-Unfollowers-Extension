@@ -219,8 +219,8 @@ async function startQueue() {
                 targetList.shift();
                 processedCount++;
                 
-                // 4. Random delay (5 - 15 seconds)
-                const sleepTime = Math.floor(Math.random() * 10000) + 5000;
+                // 4. Random delay (15 - 30 seconds)
+                const sleepTime = Math.floor(Math.random() * 15000) + 15000;
                 const total = processedCount + targetList.length;
                 
                 console.log(`[Content Script] ✅ [${processedCount}/${total}] Unfollowed: ${username} (Sleeping ${(sleepTime/1000).toFixed(1)}s...)`);
