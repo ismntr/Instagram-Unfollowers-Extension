@@ -131,10 +131,64 @@ async function executeUnfollow(userId, username) {
     return { success: false, error: 'ALL_STRATEGIES_FAILED' };
 }
 
+async function checkSession() {
+    const csrfToken = getCsrfToken();
+    const cookies = document.cookie;
+    const hasSessionId = cookies.includes('sessionid=');
+    
+    console.log(`[Content Script] 🔍 Session Check: csrftoken=${csrfToken ? 'YES' : 'NO'}, sessionid=${hasSessionId ? 'YES' : 'NO'}`);
+    
+    if (!csrfToken || !hasSessionId) {
+        console.error(`[Content Script] 🔒 SESSION CHECK FAILED: Missing ${!csrfToken ? 'csrftoken' : 'sessionid'} cookie. You are not logged in.`);
+        return false;
+    }
+    
+    // Real API test: check if we can reach a simple authenticated endpoint
+    try {
+        const testResponse = await fetch('https://www.instagram.com/api/v1/web/accounts/current_user/', {
+            credentials: 'include',
+            headers: {
+                'X-CSRFToken': csrfToken,
+                'X-IG-App-ID': IG_APP_ID,
+                'Accept': '*/*'
+            }
+        });
+        const testBody = await testResponse.text();
+        
+        if (testBody.trimStart().startsWith('<!DOCTYPE') || testBody.trimStart().startsWith('<html')) {
+            console.error(`[Content Script] 🔒 SESSION CHECK FAILED: Instagram returned a login page. Your session is expired. Please log out, log back in, and refresh the page.`);
+            return false;
+        }
+        
+        if (testResponse.status === 200) {
+            try {
+                const data = JSON.parse(testBody);
+                if (data && data.status === 'ok' && data.user) {
+                    console.log(`[Content Script] ✅ Session is valid! Logged in as: ${data.user.username}`);
+                    return true;
+                }
+            } catch(e) {}
+        }
+        
+        console.error(`[Content Script] 🔒 SESSION CHECK FAILED: Unexpected response (HTTP ${testResponse.status}). Body: ${testBody.substring(0, 200)}`);
+        return false;
+    } catch (e) {
+        console.error(`[Content Script] 🔒 SESSION CHECK FAILED: Network error: ${e.message}`);
+        return false;
+    }
+}
+
 async function startQueue() {
     if (isQueueRunning) return;
     if (targetList.length === 0) {
         console.warn("[Content Script] Target list is empty.");
+        return;
+    }
+
+    // Pre-flight session check
+    const sessionValid = await checkSession();
+    if (!sessionValid) {
+        console.error("[Content Script] 🔒 ENGINE CANNOT START: Session is not valid. Fix the login issue above and try again.");
         return;
     }
 
