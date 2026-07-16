@@ -96,10 +96,15 @@ async function executeUnfollow(userId, username) {
                 }
             });
 
-            // Always read body as text first (can only read once)
             const bodyText = await response.text();
 
             if (response.status === 200) {
+                // Check if Instagram returned HTML instead of JSON (= session expired / login redirect)
+                if (bodyText.trimStart().startsWith('<!DOCTYPE') || bodyText.trimStart().startsWith('<html')) {
+                    console.error(`[Content Script] 🔒 SESSION EXPIRED! Instagram returned a login page instead of processing the unfollow. You need to refresh the Instagram page and make sure you're logged in.`);
+                    return { success: false, error: 'SESSION_EXPIRED' };
+                }
+
                 try {
                     const data = JSON.parse(bodyText);
                     if (data && data.status === 'ok') {
@@ -172,6 +177,10 @@ async function startQueue() {
                 console.error(`[Content Script] ❌ RATE LIMIT ERROR while unfollowing ${username}. Instagram returned 429 Too Many Requests. Action: Pausing queue for 15 minutes to prevent account ban.`);
                 queuePaused = true;
                 setTimeout(() => { queuePaused = false; }, 15 * 60 * 1000);
+            } else if (unfollowResult.error === 'SESSION_EXPIRED' || unfollowResult.error === 'NO_CSRF_TOKEN') {
+                console.error(`[Content Script] 🔒 ENGINE STOPPED: Your Instagram session has expired. Please refresh the Instagram page (F5), make sure you're logged in, then re-upload your CSV and click Start again.`);
+                isQueueRunning = false;
+                return;
             } else {
                 console.error(`[Content Script] ❌ UNFOLLOW FAILED for ${username} (ID: ${userId}). Error Code: ${unfollowResult.error}. Action: Skipping to next user in 5s.`);
                 targetList.shift(); 
