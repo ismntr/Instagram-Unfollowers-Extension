@@ -18,7 +18,7 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 async function resolveUsernameToId(username, retryCount = 0) {
     const url = `https://www.instagram.com/${username}/`;
-    
+
     try {
         const response = await fetch(url, {
             credentials: 'include',
@@ -29,20 +29,20 @@ async function resolveUsernameToId(username, retryCount = 0) {
 
         if (response.status === 200) {
             const html = await response.text();
-            
+
             // 1. Arama Yöntemi: Meta etiketlerinden ID'yi bulmak (En garantilisi)
             // <meta property="al:ios:url" content="instagram://user?username=kullanici&id=123456789" />
             const metaMatch = html.match(/instagram:\/\/user\?username=[^&]+&id=([0-9]+)/);
             if (metaMatch && metaMatch[1]) {
                 return { success: true, id: metaMatch[1] };
             }
-            
+
             // 2. Arama Yöntemi: JSON veri bloklarının içinden bulmak
             const profileMatch = html.match(/"profilePage_([0-9]+)"/);
             if (profileMatch && profileMatch[1]) {
                 return { success: true, id: profileMatch[1] };
             }
-            
+
             const userMatch = html.match(/"user_id":"([0-9]+)"/);
             if (userMatch && userMatch[1]) {
                 return { success: true, id: userMatch[1] };
@@ -133,49 +133,83 @@ async function executeUnfollow(userId, username) {
 
 async function checkSession() {
     const csrfToken = getCsrfToken();
-    const cookies = document.cookie;
-    const hasSessionId = cookies.includes('sessionid=');
-    
-    console.log(`[Content Script] 🔍 Session Check: csrftoken=${csrfToken ? 'YES' : 'NO'}, sessionid=${hasSessionId ? 'YES' : 'NO'}`);
-    
-    if (!csrfToken || !hasSessionId) {
-        console.error(`[Content Script] 🔒 SESSION CHECK FAILED: Missing ${!csrfToken ? 'csrftoken' : 'sessionid'} cookie. You are not logged in.`);
+    console.log(`[Content Script] 🔍 Session Check: csrftoken=${csrfToken ? 'YES' : 'NO'}`);
+
+    if (!csrfToken) {
+        console.error(`[Content Script] 🔒 SESSION CHECK FAILED: Missing csrftoken cookie. You are not logged in.`);
         return false;
     }
-    
-    // Real API test: check if we can reach a simple authenticated endpoint
-    try {
-        const testResponse = await fetch('https://www.instagram.com/api/v1/web/accounts/current_user/', {
-            credentials: 'include',
+
+    // Strategy 1: Try the web_profile_info API endpoint (lightweight JSON check)
+    const endpoints = [
+        {
+            name: 'web_profile_info',
+            url: 'https://www.instagram.com/api/v1/users/web_profile_info/?username=instagram',
             headers: {
                 'X-CSRFToken': csrfToken,
                 'X-IG-App-ID': IG_APP_ID,
+                'X-Requested-With': 'XMLHttpRequest',
                 'Accept': '*/*'
-            }
-        });
-        const testBody = await testResponse.text();
-        
-        if (testBody.trimStart().startsWith('<!DOCTYPE') || testBody.trimStart().startsWith('<html')) {
-            console.error(`[Content Script] 🔒 SESSION CHECK FAILED: Instagram returned a login page. Your session is expired. Please log out, log back in, and refresh the page.`);
-            return false;
-        }
-        
-        if (testResponse.status === 200) {
-            try {
-                const data = JSON.parse(testBody);
-                if (data && data.status === 'ok' && data.user) {
-                    console.log(`[Content Script] ✅ Session is valid! Logged in as: ${data.user.username}`);
-                    return true;
+            },
+            validate: (status, body) => {
+                if (status === 200) {
+                    try {
+                        const data = JSON.parse(body);
+                        if (data && data.data && data.data.user) {
+                            console.log(`[Content Script] ✅ Session is valid! (verified via web_profile_info)`);
+                            return true;
+                        }
+                    } catch (e) { }
                 }
-            } catch(e) {}
+                // 401/403 = definitely not logged in
+                if (status === 401 || status === 403) return false;
+                // 404 = endpoint removed, try next
+                return null;
+            }
+        },
+        {
+            name: 'profile_page',
+            url: 'https://www.instagram.com/instagram/',
+            headers: { 'Accept': 'text/html' },
+            validate: (status, body) => {
+                if (status === 200) {
+                    // Logged-in pages contain "viewer" or "viewerId" data
+                    if (body.includes('"viewer"') || body.includes('"viewerId"') || body.includes('"username"')) {
+                        // Make sure it's not a login/signup page
+                        if (!body.includes('loginForm') && !body.includes('/accounts/login/')) {
+                            console.log(`[Content Script] ✅ Session is valid! (verified via profile page)`);
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            }
         }
-        
-        console.error(`[Content Script] 🔒 SESSION CHECK FAILED: Unexpected response (HTTP ${testResponse.status}). Body: ${testBody.substring(0, 200)}`);
-        return false;
-    } catch (e) {
-        console.error(`[Content Script] 🔒 SESSION CHECK FAILED: Network error: ${e.message}`);
-        return false;
+    ];
+
+    for (const ep of endpoints) {
+        try {
+            const resp = await fetch(ep.url, {
+                credentials: 'include',
+                headers: ep.headers
+            });
+            const body = await resp.text();
+            const result = ep.validate(resp.status, body);
+
+            if (result === true) return true;
+            if (result === false) {
+                console.error(`[Content Script] 🔒 SESSION CHECK FAILED (${ep.name}): HTTP ${resp.status}. You are not logged in or your session has expired.`);
+                return false;
+            }
+            // result === null means endpoint is gone, try next
+            console.warn(`[Content Script] ⚠️ Session check endpoint '${ep.name}' unavailable (HTTP ${resp.status}), trying next...`);
+        } catch (e) {
+            console.warn(`[Content Script] ⚠️ Session check endpoint '${ep.name}' failed: ${e.message}, trying next...`);
+        }
     }
+
+    console.error(`[Content Script] 🔒 SESSION CHECK FAILED: All verification endpoints are unavailable. Please make sure you are on instagram.com and logged in.`);
+    return false;
 }
 
 async function startQueue() {
@@ -202,31 +236,31 @@ async function startQueue() {
         }
 
         const username = targetList[0];
-        
+
         // 1. Resolve ID
         const resolveResult = await resolveUsernameToId(username);
-        
+
         if (resolveResult.success) {
             const userId = resolveResult.id;
-            
+
             // 2. Wait 2 seconds between profile fetch and unfollow
             await delay(2000);
-            
+
             // 3. Unfollow
             const unfollowResult = await executeUnfollow(userId, username);
-            
+
             if (unfollowResult.success) {
                 targetList.shift();
                 processedCount++;
-                
+
                 // 4. Random delay (15 - 30 seconds)
                 const sleepTime = Math.floor(Math.random() * 15000) + 15000;
                 const total = processedCount + targetList.length;
-                
-                console.log(`[Content Script] ✅ [${processedCount}/${total}] Unfollowed: ${username} (Sleeping ${(sleepTime/1000).toFixed(1)}s...)`);
-                
+
+                console.log(`[Content Script] ✅ [${processedCount}/${total}] Unfollowed: ${username} (Sleeping ${(sleepTime / 1000).toFixed(1)}s...)`);
+
                 await delay(sleepTime);
-                
+
             } else if (unfollowResult.error === 'RATE_LIMITED') {
                 console.error(`[Content Script] ❌ RATE LIMIT ERROR while unfollowing ${username}. Instagram returned 429 Too Many Requests. Action: Pausing queue for 15 minutes to prevent account ban.`);
                 queuePaused = true;
@@ -237,10 +271,10 @@ async function startQueue() {
                 return;
             } else {
                 console.error(`[Content Script] ❌ UNFOLLOW FAILED for ${username} (ID: ${userId}). Error Code: ${unfollowResult.error}. Action: Skipping to next user in 5s.`);
-                targetList.shift(); 
+                targetList.shift();
                 await delay(5000);
             }
-            
+
         } else if (resolveResult.error === 'RATE_LIMITED') {
             console.error(`[Content Script] ❌ RATE LIMIT ERROR while fetching profile for ${username}. Instagram returned 429 Too Many Requests. Action: Pausing queue for 15 minutes to prevent account ban.`);
             queuePaused = true;
@@ -248,7 +282,7 @@ async function startQueue() {
         } else if (resolveResult.error === 'USER_NOT_FOUND' || resolveResult.error === 'USER_NOT_FOUND_IN_HTML') {
             console.warn(`[Content Script] ⚠️ SKIPPED: ${username} not found. They might have changed their username or deleted their account.`);
             targetList.shift();
-            processedCount++; 
+            processedCount++;
             await delay(2000);
         } else {
             console.error(`[Content Script] ❌ RESOLVE FAILED for ${username}. Error Code: ${resolveResult.error}. Could not extract numeric ID from HTML. Action: Skipping to next user in 5s.`);
@@ -256,7 +290,7 @@ async function startQueue() {
             await delay(5000);
         }
     }
-    
+
     isQueueRunning = false;
     console.log("[Content Script] Engine stopped.");
 }
