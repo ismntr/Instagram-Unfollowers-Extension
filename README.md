@@ -51,7 +51,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-# Instagram Unfollower Extension 🚀 (Türkçe)
+# Instagram Takipten Çıkma Eklentisi 🚀
 
 Instagram kullanıcı adlarını içeren bir CSV dosyasını okuyan ve doğrudan API entegrasyonu ile rastgele bekleme süreleri kullanarak kullanıcıları sırayla takipten çıkaran bir Proof of Concept (PoC) Google Chrome Eklentisi (Manifest V3).
 
