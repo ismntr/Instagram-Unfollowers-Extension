@@ -71,17 +71,14 @@ async function executeUnfollow(userId, username) {
     const csrfToken = getCsrfToken();
     if (!csrfToken) return { success: false, error: 'NO_CSRF_TOKEN' };
 
-    // Strategy list: try multiple endpoint/body combinations
     const strategies = [
         {
             name: 'v1_destroy',
             url: `https://www.instagram.com/api/v1/friendships/destroy/${userId}/`,
-            body: ''
         },
         {
             name: 'web_unfollow',
             url: `https://www.instagram.com/web/friendships/${userId}/unfollow/`,
-            body: ''
         }
     ];
 
@@ -96,35 +93,32 @@ async function executeUnfollow(userId, username) {
                     'X-Requested-With': 'XMLHttpRequest',
                     'Content-Type': 'application/x-www-form-urlencoded',
                     'Accept': '*/*'
-                },
-                body: strategy.body
+                }
             });
+
+            // Always read body as text first (can only read once)
+            const bodyText = await response.text();
 
             if (response.status === 200) {
                 try {
-                    const data = await response.json();
+                    const data = JSON.parse(bodyText);
                     if (data && data.status === 'ok') {
                         return { success: true, strategy: strategy.name };
                     } else {
-                        console.warn(`[Content Script] ⚠️ [${strategy.name}] ${username}: HTTP 200 but status not ok. Response:`, JSON.stringify(data));
+                        console.warn(`[Content Script] ⚠️ [${strategy.name}] ${username}: HTTP 200 but status not ok. Response: ${bodyText.substring(0, 200)}`);
                     }
                 } catch (e) {
-                    const text = await response.clone().text().catch(() => 'unreadable');
-                    console.warn(`[Content Script] ⚠️ [${strategy.name}] ${username}: HTTP 200 but not JSON. Body: ${text.substring(0, 200)}`);
+                    console.warn(`[Content Script] ⚠️ [${strategy.name}] ${username}: HTTP 200 but not JSON. Body: ${bodyText.substring(0, 200)}`);
                 }
             } else if (response.status === 429) {
                 return { success: false, error: 'RATE_LIMITED' };
             } else {
-                // Log the actual error body from Instagram so we know WHY it failed
-                let errorBody = '';
-                try { errorBody = await response.text(); } catch(e) {}
-                console.error(`[Content Script] ❌ [${strategy.name}] ${username} (ID: ${userId}): HTTP ${response.status}. Response body: ${errorBody.substring(0, 300)}`);
-                // If 400, try next strategy
+                console.error(`[Content Script] ❌ [${strategy.name}] ${username} (ID: ${userId}): HTTP ${response.status}. Response: ${bodyText.substring(0, 300)}`);
                 if (response.status === 400) continue;
                 return { success: false, error: `HTTP_${response.status}` };
             }
         } catch (error) {
-            console.error(`[Content Script] ❌ [${strategy.name}] ${username}: Network error:`, error.message);
+            console.error(`[Content Script] ❌ [${strategy.name}] ${username}: Network error: ${error.message}`);
             continue;
         }
     }
